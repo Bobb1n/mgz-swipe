@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"swipe-mgz/internal/domain"
+	pkgkafka "swipe-mgz/pkg/kafka"
 
-	kafka "github.com/segmentio/kafka-go"
+	kafkago "github.com/segmentio/kafka-go"
 )
 
 const (
@@ -33,32 +33,22 @@ type matchEvent struct {
 }
 
 type Publisher struct {
-	swipeWriter *kafka.Writer
-	matchWriter *kafka.Writer
+	swipeWriter *kafkago.Writer
+	matchWriter *kafkago.Writer
 }
 
 func NewPublisher(brokers string) *Publisher {
-	addrs := strings.Split(brokers, ",")
+	addrs := pkgkafka.ParseBrokers(brokers)
 	return &Publisher{
-		swipeWriter: &kafka.Writer{
-			Addr:                   kafka.TCP(addrs...),
-			Topic:                  TopicSwipe,
-			Balancer:               &kafka.LeastBytes{},
-			AllowAutoTopicCreation: true,
-		},
-		matchWriter: &kafka.Writer{
-			Addr:                   kafka.TCP(addrs...),
-			Topic:                  TopicMatch,
-			Balancer:               &kafka.LeastBytes{},
-			AllowAutoTopicCreation: true,
-		},
+		swipeWriter: pkgkafka.NewWriter(pkgkafka.WriterConfig{Brokers: addrs, Topic: TopicSwipe, AllowAutoTopicCreate: true}),
+		matchWriter: pkgkafka.NewWriter(pkgkafka.WriterConfig{Brokers: addrs, Topic: TopicMatch, AllowAutoTopicCreate: true}),
 	}
 }
 
-func publish(w *kafka.Writer, key, value []byte, topic string) error {
+func publish(w *kafkago.Writer, key, value []byte, topic string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	err := w.WriteMessages(ctx, kafka.Message{Key: key, Value: value})
+	err := w.WriteMessages(ctx, kafkago.Message{Key: key, Value: value})
 	if err != nil {
 		slog.Error("kafka publish failed", "topic", topic, "error", err)
 	}

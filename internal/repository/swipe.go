@@ -34,7 +34,6 @@ func (r *SwipeRepo) Create(ctx context.Context, swipe *domain.Swipe) error {
 	return nil
 }
 
-// HasMutualLike checks whether swipee_id has already liked swiper_id.
 func (r *SwipeRepo) HasMutualLike(ctx context.Context, swiperID, swipeeID string) (bool, error) {
 	var exists bool
 	err := r.db.QueryRow(ctx,
@@ -67,7 +66,6 @@ func (r *SwipeRepo) GetByUsers(ctx context.Context, swiperID, swipeeID string) (
 	return s, nil
 }
 
-// AlreadySwiped reports whether swiperID has already swiped swipeeID.
 func (r *SwipeRepo) AlreadySwiped(ctx context.Context, swiperID, swipeeID string) (bool, error) {
 	var exists bool
 	err := r.db.QueryRow(ctx,

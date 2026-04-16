@@ -10,23 +10,23 @@ const (
 )
 
 type Swipe struct {
-	ID        int64     `json:"id"`
-	SwiperID  string    `json:"swiper_id"`
-	SwipeeID  string    `json:"swipee_id"`
-	Direction Direction `json:"direction"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        int64
+	SwiperID  string
+	SwipeeID  string
+	Direction Direction
+	CreatedAt time.Time
 }
 
 type Match struct {
-	ID        int64     `json:"id"`
-	User1ID   string    `json:"user1_id"`
-	User2ID   string    `json:"user2_id"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        int64
+	User1ID   string
+	User2ID   string
+	CreatedAt time.Time
 }
 
 type Candidate struct {
-	UserID    string  `json:"user_id"`
-	Longitude float64 `json:"longitude"`
-	Latitude  float64 `json:"latitude"`
-	DistKm    float64 `json:"distance_km"`
+	UserID    string
+	Longitude float64
+	Latitude  float64
+	DistKm    float64
 }

@@ -10,13 +10,14 @@ import (
 
 type Config struct {
 	ServerPort  string
+	GRPCPort    string
 	DatabaseURL string
 
 	RedisAddr     string
 	RedisPassword string
 	RedisDB       int
 
-	KafkaBrokers string
+	KafkaBrokers string // comma-separated
 
 	GeoRadiusKm float64
 }
@@ -45,6 +46,7 @@ func Load() (*Config, error) {
 
 	return &Config{
 		ServerPort:    getEnv("SERVER_PORT", "8084"),
+		GRPCPort:      getEnv("GRPC_PORT", "50054"),
 		DatabaseURL:   dbURL,
 		RedisAddr:     getEnv("REDIS_ADDR", "localhost:6379"),
 		RedisPassword: os.Getenv("REDIS_PASSWORD"),
