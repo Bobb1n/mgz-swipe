@@ -1,0 +1,223 @@
+openapi: 3.0.3
+info:
+  title: Swipe Service API
+  version: 1.0.0
+  description: |
+    Сервис свайпов, матчей и геолокации для приложения знакомств.
+
+    Все защищённые эндпоинты требуют JWT Bearer-токена.
+    API Gateway проверяет токен и прокидывает `X-User-Id` в этот сервис.
+
+servers:
+  - url: http://localhost:8080
+    description: API Gateway (local)
+
+tags:
+  - name: swipes
+    description: Like / dislike
+  - name: matches
+    description: Список матчей
+  - name: geo
+    description: Геолокация и кандидаты
+
+paths:
+  /v1/swipes:
+    post:
+      tags: [swipes]
+      summary: Поставить like или dislike
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SwipeRequest'
+      responses:
+        '200':
+          description: Результат свайпа (включает match, если возник)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SwipeResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/matches:
+    get:
+      tags: [matches]
+      summary: Список матчей текущего пользователя
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+        - in: query
+          name: offset
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: Список матчей
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/location:
+    put:
+      tags: [geo]
+      summary: Обновить координаты пользователя
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LocationRequest'
+      responses:
+        '200':
+          description: Координаты обновлены
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/candidates:
+    get:
+      tags: [geo]
+      summary: Кандидаты в радиусе N км от текущего пользователя
+      description: |
+        Возвращает user_id пользователей, которые обновили свою геопозицию
+        и находятся в пределах `GEO_RADIUS_KM` (по умолчанию 50 км).
+        Для обогащения данных профиля используйте `GET /v1/users/{user_id}`.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Список кандидатов
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CandidateListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: Неверный запрос
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Требуется авторизация
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    SwipeRequest:
+      type: object
+      required: [swipee_id, direction]
+      properties:
+        swipee_id:
+          type: string
+          format: uuid
+          description: ID пользователя, которого свайпают
+        direction:
+          type: string
+          enum: [like, dislike]
+
+    SwipeResponse:
+      type: object
+      properties:
+        swipe:
+          $ref: '#/components/schemas/Swipe'
+        match:
+          $ref: '#/components/schemas/Match'
+          nullable: true
+          description: Присутствует, если возник взаимный лайк
+
+    Swipe:
+      type: object
+      properties:
+        id:        { type: integer, format: int64 }
+        swiper_id: { type: string, format: uuid }
+        swipee_id: { type: string, format: uuid }
+        direction: { type: string, enum: [like, dislike] }
+        created_at: { type: string, format: date-time }
+
+    Match:
+      type: object
+      properties:
+        id:         { type: integer, format: int64 }
+        user1_id:   { type: string, format: uuid }
+        user2_id:   { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+
+    MatchListResponse:
+      type: object
+      properties:
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/Match'
+        limit:  { type: integer }
+        offset: { type: integer }
+
+    LocationRequest:
+      type: object
+      required: [longitude, latitude]
+      properties:
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+
+    Candidate:
+      type: object
+      properties:
+        user_id:     { type: string, format: uuid }
+        longitude:   { type: number, format: double }
+        latitude:    { type: number, format: double }
+        distance_km: { type: number, format: double }
+
+    CandidateListResponse:
+      type: object
+      properties:
+        candidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/Candidate'
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
