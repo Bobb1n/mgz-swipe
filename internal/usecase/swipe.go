@@ -8,6 +8,30 @@ import (
 	"swipe-mgz/internal/domain"
 )
 
+// Порты определены рядом с потребителем (use case), адаптеры в repository/events их реализуют.
+
+type swipeRepository interface {
+	Create(ctx context.Context, swipe *domain.Swipe) error
+	GetByUsers(ctx context.Context, swiperID, swipeeID string) (*domain.Swipe, error)
+	HasMutualLike(ctx context.Context, swiperID, swipeeID string) (bool, error)
+	AlreadySwiped(ctx context.Context, swiperID, swipeeID string) (bool, error)
+}
+
+type matchRepository interface {
+	Create(ctx context.Context, user1ID, user2ID string) (*domain.Match, error)
+	ListByUser(ctx context.Context, userID string, limit, offset int) ([]*domain.Match, error)
+}
+
+type locationRepository interface {
+	Update(ctx context.Context, userID string, lon, lat float64) error
+	Candidates(ctx context.Context, userID string, radiusKm float64) ([]*domain.Candidate, error)
+}
+
+type eventPublisher interface {
+	PublishSwipe(ctx context.Context, s *domain.Swipe) error
+	PublishMatch(ctx context.Context, m *domain.Match) error
+}
+
 var (
 	ErrSelfSwipe        = errors.New("cannot swipe yourself")
 	ErrAlreadySwiped    = errors.New("already swiped this user")
@@ -28,18 +52,18 @@ type SwipeResult struct {
 }
 
 type SwipeUseCase struct {
-	swipeRepo    SwipeRepository
-	matchRepo    MatchRepository
-	locationRepo LocationRepository
-	publisher    EventPublisher
+	swipeRepo    swipeRepository
+	matchRepo    matchRepository
+	locationRepo locationRepository
+	publisher    eventPublisher
 	radiusKm     float64
 }
 
 func NewSwipeUseCase(
-	swipeRepo SwipeRepository,
-	matchRepo MatchRepository,
-	locationRepo LocationRepository,
-	publisher EventPublisher,
+	swipeRepo swipeRepository,
+	matchRepo matchRepository,
+	locationRepo locationRepository,
+	publisher eventPublisher,
 	radiusKm float64,
 ) *SwipeUseCase {
 	return &SwipeUseCase{
@@ -76,12 +100,18 @@ func (uc *SwipeUseCase) Swipe(ctx context.Context, swiperID, swipeeID string, di
 		Direction: dir,
 	}
 	if err := uc.swipeRepo.Create(ctx, swipe); err != nil {
+		if errors.Is(err, domain.ErrSwipeDuplicate) {
+			return nil, ErrAlreadySwiped
+		}
 		return nil, fmt.Errorf("create swipe: %w", err)
 	}
 
 	loaded, err := uc.swipeRepo.GetByUsers(ctx, swiperID, swipeeID)
-	if err != nil || loaded == nil {
+	if err != nil {
 		return nil, fmt.Errorf("reload swipe: %w", err)
+	}
+	if loaded == nil {
+		return nil, fmt.Errorf("reload swipe: empty row after insert")
 	}
 	swipe = loaded
 
@@ -92,7 +122,7 @@ func (uc *SwipeUseCase) Swipe(ctx context.Context, swiperID, swipeeID string, di
 	if dir == domain.DirectionLike {
 		mutual, err := uc.swipeRepo.HasMutualLike(ctx, swiperID, swipeeID)
 		if err != nil {
-			return result, nil
+			return nil, fmt.Errorf("check mutual like: %w", err)
 		}
 		if mutual {
 			u1, u2 := swiperID, swipeeID
@@ -100,10 +130,11 @@ func (uc *SwipeUseCase) Swipe(ctx context.Context, swiperID, swipeeID string, di
 				u1, u2 = u2, u1
 			}
 			match, err := uc.matchRepo.Create(ctx, u1, u2)
-			if err == nil {
-				result.Match = match
-				go func(m *domain.Match) { _ = uc.publisher.PublishMatch(context.Background(), m) }(match)
+			if err != nil {
+				return nil, fmt.Errorf("create match: %w", err)
 			}
+			result.Match = match
+			go func(m *domain.Match) { _ = uc.publisher.PublishMatch(context.Background(), m) }(match)
 		}
 	}
 

@@ -20,10 +20,16 @@ func NewMatchRepo(db *pgxpool.Pool) *MatchRepo {
 func (r *MatchRepo) Create(ctx context.Context, user1ID, user2ID string) (*domain.Match, error) {
 	m := &domain.Match{}
 	err := r.db.QueryRow(ctx,
-		`INSERT INTO matches (user1_id, user2_id)
-		 VALUES ($1, $2)
-		 ON CONFLICT (user1_id, user2_id) DO UPDATE SET user1_id = EXCLUDED.user1_id
-		 RETURNING id, user1_id, user2_id, created_at`,
+		`WITH ins AS (
+			INSERT INTO matches (user1_id, user2_id)
+			VALUES ($1, $2)
+			ON CONFLICT (user1_id, user2_id) DO NOTHING
+			RETURNING id, user1_id, user2_id, created_at
+		)
+		SELECT id, user1_id, user2_id, created_at FROM ins
+		UNION ALL
+		SELECT id, user1_id, user2_id, created_at FROM matches WHERE user1_id = $1 AND user2_id = $2
+		LIMIT 1`,
 		user1ID, user2ID,
 	).Scan(&m.ID, &m.User1ID, &m.User2ID, &m.CreatedAt)
 	if err != nil {

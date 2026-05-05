@@ -11,5 +11,6 @@ RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=builder /swipe-mgz .
 COPY --from=builder /migrate .
+COPY --from=builder /app/internal/migrations ./internal/migrations
 EXPOSE 8084 50054
 CMD ["sh", "-c", "./migrate && ./swipe-mgz"]

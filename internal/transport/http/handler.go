@@ -56,7 +56,7 @@ func (h *Handler) swipe(c echo.Context) error {
 	if err != nil {
 		return mapUseCaseError(c, err)
 	}
-	return c.JSON(http.StatusOK, toSwipeResponse(result))
+	return c.JSON(http.StatusCreated, toSwipeResponse(result, userID))
 }
 
 func (h *Handler) listMatches(c echo.Context) error {
@@ -75,7 +75,7 @@ func (h *Handler) listMatches(c echo.Context) error {
 
 	out := make([]*matchDTO, 0, len(matches))
 	for _, m := range matches {
-		out = append(out, toMatchDTO(m))
+		out = append(out, toMatchDTOForViewer(m, userID))
 	}
 	if limit <= 0 {
 		limit = usecase.DefaultListLimit

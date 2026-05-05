@@ -1,6 +1,12 @@
 package domain
 
-import "time"
+import (
+	"errors"
+	"time"
+)
+
+// ErrSwipeDuplicate — INSERT свайпа не создал строку (гонка или UNIQUE).
+var ErrSwipeDuplicate = errors.New("swipe already exists for this pair")
 
 type Direction string
 

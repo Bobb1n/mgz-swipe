@@ -11,8 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var ErrAlreadySwiped = errors.New("already swiped")
-
 type SwipeRepo struct {
 	db *pgxpool.Pool
 }
@@ -22,7 +20,7 @@ func NewSwipeRepo(db *pgxpool.Pool) *SwipeRepo {
 }
 
 func (r *SwipeRepo) Create(ctx context.Context, swipe *domain.Swipe) error {
-	_, err := r.db.Exec(ctx,
+	tag, err := r.db.Exec(ctx,
 		`INSERT INTO swipes (swiper_id, swipee_id, direction)
 		 VALUES ($1, $2, $3)
 		 ON CONFLICT (swiper_id, swipee_id) DO NOTHING`,
@@ -30,6 +28,9 @@ func (r *SwipeRepo) Create(ctx context.Context, swipe *domain.Swipe) error {
 	)
 	if err != nil {
 		return fmt.Errorf("create swipe: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return domain.ErrSwipeDuplicate
 	}
 	return nil
 }

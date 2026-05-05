@@ -1,0 +1,68 @@
+services:
+  gateway:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      swipe:
+        condition: service_started
+
+  swipe:
+    build: .
+    restart: on-failure:5
+    environment:
+      SERVER_PORT: "8084"
+      GRPC_PORT: "50054"
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/swipe?sslmode=disable
+      REDIS_ADDR: redis:6379
+      REDIS_DB: "1"
+      KAFKA_BROKERS: redpanda:9092
+      GEO_RADIUS_KM: "50"
+    expose:
+      - "8084"
+      - "50054"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      redpanda:
+        condition: service_started
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: swipe
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d swipe"]
+      interval: 3s
+      timeout: 5s
+      retries: 15
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.11
+    command:
+      - redpanda
+      - start
+      - --kafka-addr
+      - internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - internal://redpanda:9092,external://localhost:19092
+      - --mode
+      - dev-container
+      - --smp
+      - "1"
+    ports:
+      - "19092:19092"
